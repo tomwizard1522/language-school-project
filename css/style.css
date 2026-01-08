@@ -1,0 +1,103 @@
+/* Основные стили для проекта */
+
+/* Переменные для цветов (можно настроить под свой дизайн) */
+:root {
+  --primary-color: #0d6efd;
+  --secondary-color: #6c757d;
+  --success-color: #198754;
+  --danger-color: #dc3545;
+  --warning-color: #ffc107;
+  --info-color: #0dcaf0;
+  --light-color: #f8f9fa;
+  --dark-color: #212529;
+}
+
+/* Общие стили */
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.6;
+  color: #333;
+}
+
+/* Навигация */
+.navbar-brand {
+  font-weight: 700;
+}
+
+/* Карточки курсов */
+.course-card {
+  transition: transform 0.3s ease;
+  height: 100%;
+}
+
+.course-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Кнопки */
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1.1rem;
+}
+
+/* Футер */
+footer {
+  margin-top: auto;
+}
+
+footer .social-links a {
+  font-size: 1.2rem;
+  transition: opacity 0.3s ease;
+}
+
+footer .social-links a:hover {
+  opacity: 0.8;
+  text-decoration: none;
+}
+
+/* Таблицы */
+.table th {
+  background-color: #f8f9fa;
+  border-top: none;
+}
+
+/* Уведомления */
+.notification {
+  animation: slideInRight 0.3s ease;
+  max-width: 400px;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Адаптивные изображения */
+.img-fluid {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Отступы для мобильных устройств */
+@media (max-width: 768px) {
+  .display-4 {
+    font-size: 2.5rem;
+  }
+
+  .lead {
+    font-size: 1.1rem;
+  }
+}
+
+/* Спиннер загрузки */
+.spinner-border {
+  width: 3rem;
+  height: 3rem;
+}

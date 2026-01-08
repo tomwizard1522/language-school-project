@@ -800,3 +800,630 @@ function showContactModal() {
         modalContainer.remove();
     });
 }
+// ============================================
+// ФУНКЦИИ ДЛЯ ОФОРМЛЕНИЯ ЗАЯВОК
+// ============================================
+
+/**
+ * Показывает модальное окно оформления заявки на курс
+ */
+function showCourseApplicationModal(courseId, courseName, teacherName, courseFee, totalLength) {
+    // Сначала получаем полную информацию о курсе
+    getCourseById(courseId).then(course => {
+        if (!course) {
+            showNotification('Не удалось загрузить информацию о курсе', 'danger');
+            return;
+        }
+        
+        // Создаем модальное окно
+        const modalHtml = `
+            <div class="modal fade" id="applicationModal" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Оформление заявки на курс</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="applicationForm">
+                                <input type="hidden" id="course_id" value="${course.id}">
+                                <input type="hidden" id="tutor_id" value="0">
+                                
+                                <!-- Информация о курсе -->
+                                <div class="card mb-4">
+                                    <div class="card-body">
+                                        <h6>Информация о курсе</h6>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <p><strong>Название курса:</strong><br>${course.name}</p>
+                                                <p><strong>Преподаватель:</strong><br>${course.teacher}</p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <p><strong>Уровень:</strong><br><span class="badge bg-info">${course.level}</span></p>
+                                                <p><strong>Продолжительность:</strong><br>${course.total_length} недель</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Основные поля формы -->
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="date_start" class="form-label">Дата начала *</label>
+                                        <select class="form-select" id="date_start" required>
+                                            <option value="">Выберите дату начала</option>
+                                            ${course.start_dates && course.start_dates.length > 0 ? 
+                                                course.start_dates.map(date => 
+                                                    `<option value="${date.split('T')[0]}">${formatDate(date)}</option>`
+                                                ).join('') : 
+                                                '<option value="">Нет доступных дат</option>'
+                                            }
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label for="time_start" class="form-label">Время начала *</label>
+                                        <select class="form-select" id="time_start" required disabled>
+                                            <option value="">Сначала выберите дату</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label for="persons" class="form-label">Количество студентов *</label>
+                                        <input type="number" class="form-control" id="persons" 
+                                               min="1" max="20" value="1" required>
+                                        <div class="form-text">От 1 до 20 человек</div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label for="duration" class="form-label">Продолжительность</label>
+                                        <input type="text" class="form-control" id="duration" 
+                                               value="${course.total_length} недель" readonly>
+                                    </div>
+                                </div>
+                                
+                                <!-- Дополнительные опции -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Дополнительные опции</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox" id="supplementary">
+                                                    <label class="form-check-label" for="supplementary">
+                                                        Дополнительные учебные материалы (+2000 ₽ на человека)
+                                                    </label>
+                                                </div>
+                                                
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox" id="personalized">
+                                                    <label class="form-check-label" for="personalized">
+                                                        Индивидуальные занятия (+1500 ₽ в неделю)
+                                                    </label>
+                                                </div>
+                                                
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox" id="excursions">
+                                                    <label class="form-check-label" for="excursions">
+                                                        Культурные экскурсии (+25% к стоимости)
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="col-md-6">
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox" id="assessment">
+                                                    <label class="form-check-label" for="assessment">
+                                                        Оценка уровня владения языком (+300 ₽)
+                                                    </label>
+                                                </div>
+                                                
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox" id="interactive">
+                                                    <label class="form-check-label" for="interactive">
+                                                        Интерактивная онлайн-платформа (×1.5 к стоимости)
+                                                    </label>
+                                                </div>
+                                                
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox" id="intensive_course">
+                                                    <label class="form-check-label" for="intensive_course">
+                                                        Интенсивный курс (+20% к стоимости)
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Автоматические скидки (только информация) -->
+                                        <div class="alert alert-info mt-3">
+                                            <h6 class="alert-heading">Автоматические скидки:</h6>
+                                            <p class="mb-1">• Ранняя регистрация (за месяц) → -10%</p>
+                                            <p class="mb-0">• Групповая запись (5+ человек) → -15%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Расчет стоимости -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Расчет стоимости</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row align-items-center">
+                                            <div class="col-md-8">
+                                                <h4 id="totalPrice">0 ₽</h4>
+                                                <p class="text-muted mb-0" id="priceDetails">Базовая стоимость рассчитывается автоматически</p>
+                                            </div>
+                                            <div class="col-md-4 text-end">
+                                                <button type="button" class="btn btn-outline-primary" id="calculatePriceBtn">
+                                                    <i class="bi bi-calculator me-2"></i>Рассчитать
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="button" class="btn btn-primary" id="submitApplicationBtn" disabled>
+                                <i class="bi bi-check-circle me-2"></i>Отправить заявку
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Добавляем модальное окно в DOM
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHtml;
+        document.body.appendChild(modalContainer);
+        
+        // Инициализируем обработчики событий для формы
+        initApplicationForm(course);
+        
+        // Показываем модальное окно
+        const modal = new bootstrap.Modal(document.getElementById('applicationModal'));
+        modal.show();
+        
+        // Удаляем модальное окно из DOM после закрытия
+        modalContainer.querySelector('#applicationModal').addEventListener('hidden.bs.modal', function () {
+            modalContainer.remove();
+        });
+        
+    }).catch(error => {
+        console.error('Ошибка при загрузке курса:', error);
+        showNotification('Ошибка при загрузке информации о курсе', 'danger');
+    });
+}
+
+/**
+ * Инициализирует обработчики событий для формы заявки
+ */
+function initApplicationForm(course) {
+    const dateSelect = document.getElementById('date_start');
+    const timeSelect = document.getElementById('time_start');
+    const personsInput = document.getElementById('persons');
+    const calculateBtn = document.getElementById('calculatePriceBtn');
+    const submitBtn = document.getElementById('submitApplicationBtn');
+    
+    // Обновляем время при выборе даты
+    if (dateSelect) {
+        dateSelect.addEventListener('change', function() {
+            const selectedDate = this.value;
+            updateTimeOptions(course, selectedDate);
+        });
+    }
+    
+    // Кнопка расчета стоимости
+    if (calculateBtn) {
+        calculateBtn.addEventListener('click', function() {
+            calculateCoursePrice(course);
+        });
+    }
+    
+    // Валидация формы перед отправкой
+    const form = document.getElementById('applicationForm');
+    if (form) {
+        form.addEventListener('input', function() {
+            validateApplicationForm();
+        });
+        
+        form.addEventListener('change', function() {
+            validateApplicationForm();
+        });
+    }
+    
+    // Обработка отправки формы
+    if (submitBtn) {
+        submitBtn.addEventListener('click', function() {
+            submitCourseApplication(course);
+        });
+    }
+    
+    // Автоматический расчет при изменении параметров
+    [dateSelect, timeSelect, personsInput].forEach(element => {
+        if (element) {
+            element.addEventListener('change', function() {
+                calculateCoursePrice(course);
+            });
+        }
+    });
+    
+    // Чекбоксы для автоматического расчета
+    document.querySelectorAll('#applicationForm input[type="checkbox"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            calculateCoursePrice(course);
+        });
+    });
+}
+
+/**
+ * Обновляет доступные варианты времени для выбранной даты
+ */
+function updateTimeOptions(course, selectedDate) {
+    const timeSelect = document.getElementById('time_start');
+    
+    if (!timeSelect || !course.start_dates) return;
+    
+    // Очищаем опции
+    timeSelect.innerHTML = '<option value="">Выберите время</option>';
+    timeSelect.disabled = true;
+    
+    if (!selectedDate) {
+        timeSelect.innerHTML = '<option value="">Сначала выберите дату</option>';
+        return;
+    }
+    
+    // Фильтруем времена для выбранной даты
+    const timesForDate = course.start_dates
+        .filter(dateTime => dateTime.startsWith(selectedDate))
+        .map(dateTime => {
+            const timePart = dateTime.split('T')[1];
+            const [hours, minutes] = timePart.split(':');
+            return `${hours}:${minutes}`;
+        })
+        .filter((time, index, array) => array.indexOf(time) === index); // Уникальные значения
+    
+    if (timesForDate.length === 0) {
+        timeSelect.innerHTML = '<option value="">Нет доступного времени</option>';
+        return;
+    }
+    
+    // Добавляем опции
+    timesForDate.forEach(time => {
+        const option = document.createElement('option');
+        option.value = time;
+        option.textContent = time;
+        timeSelect.appendChild(option);
+    });
+    
+    timeSelect.disabled = false;
+}
+
+/**
+ * Рассчитывает стоимость курса
+ */
+function calculateCoursePrice(course) {
+    const dateSelect = document.getElementById('date_start');
+    const timeSelect = document.getElementById('time_start');
+    const personsInput = document.getElementById('persons');
+    const totalPriceElement = document.getElementById('totalPrice');
+    const priceDetailsElement = document.getElementById('priceDetails');
+    const submitBtn = document.getElementById('submitApplicationBtn');
+    
+    if (!dateSelect || !timeSelect || !personsInput || !totalPriceElement) {
+        return;
+    }
+    
+    // Получаем значения
+    const selectedDate = dateSelect.value;
+    const selectedTime = timeSelect.value;
+    const persons = parseInt(personsInput.value) || 1;
+    
+    // Проверяем, что все обязательные поля заполнены
+    if (!selectedDate || !selectedTime || !persons) {
+        totalPriceElement.textContent = '0 ₽';
+        priceDetailsElement.textContent = 'Заполните все обязательные поля';
+        if (submitBtn) submitBtn.disabled = true;
+        return;
+    }
+    
+    // Базовая стоимость (по формуле из задания)
+    const courseFeePerHour = course.course_fee_per_hour || 0;
+    const totalHours = (course.total_length || 0) * (course.week_length || 0);
+    
+    // Определяем множитель для выходных/праздников
+    const date = new Date(selectedDate);
+    const dayOfWeek = date.getDay(); // 0 - воскресенье, 6 - суббота
+    const isWeekendOrHoliday = (dayOfWeek === 0 || dayOfWeek === 6) ? 1.5 : 1;
+    
+    // Доплаты за время
+    const [hours, minutes] = selectedTime.split(':');
+    const hour = parseInt(hours);
+    
+    let morningSurcharge = 0;
+    let eveningSurcharge = 0;
+    
+    if (hour >= 9 && hour < 12) {
+        morningSurcharge = 400;
+    }
+    
+    if (hour >= 18 && hour < 20) {
+        eveningSurcharge = 1000;
+    }
+    
+    // Базовая стоимость (по формуле из задания)
+    let basePrice = (courseFeePerHour * totalHours * isWeekendOrHoliday + morningSurcharge + eveningSurcharge) * persons;
+    
+    // Применяем дополнительные опции
+    let optionsPrice = basePrice;
+    let optionsDetails = [];
+    
+    // Интенсивный курс
+    if (document.getElementById('intensive_course')?.checked) {
+        optionsPrice *= 1.2;
+        optionsDetails.push('Интенсивный курс (+20%)');
+    }
+    
+    // Дополнительные материалы
+    if (document.getElementById('supplementary')?.checked) {
+        const supplementPrice = 2000 * persons;
+        optionsPrice += supplementPrice;
+        optionsDetails.push(`Доп. материалы (+${formatPrice(supplementPrice)})`);
+    }
+    
+    // Индивидуальные занятия
+    if (document.getElementById('personalized')?.checked) {
+        const personalizedPrice = 1500 * (course.total_length || 0);
+        optionsPrice += personalizedPrice;
+        optionsDetails.push(`Индивидуальные занятия (+${formatPrice(personalizedPrice)})`);
+    }
+    
+    // Культурные экскурсии
+    if (document.getElementById('excursions')?.checked) {
+        optionsPrice *= 1.25;
+        optionsDetails.push('Культурные экскурсии (+25%)');
+    }
+    
+    // Оценка уровня
+    if (document.getElementById('assessment')?.checked) {
+        optionsPrice += 300;
+        optionsDetails.push('Оценка уровня (+300 ₽)');
+    }
+    
+    // Интерактивная платформа
+    if (document.getElementById('interactive')?.checked) {
+        optionsPrice *= 1.5;
+        optionsDetails.push('Интерактивная платформа (×1.5)');
+    }
+    
+    // Проверяем автоматические скидки
+    const today = new Date();
+    const courseStartDate = new Date(selectedDate);
+    const daysUntilCourse = Math.ceil((courseStartDate - today) / (1000 * 60 * 60 * 24));
+    
+    let finalPrice = optionsPrice;
+    let discountDetails = [];
+    
+    // Ранняя регистрация (за 30 дней и более)
+    if (daysUntilCourse >= 30) {
+        finalPrice *= 0.9; // -10%
+        discountDetails.push('Ранняя регистрация (-10%)');
+    }
+    
+    // Групповая запись (5+ человек)
+    if (persons >= 5) {
+        finalPrice *= 0.85; // -15%
+        discountDetails.push('Групповая запись (-15%)');
+    }
+    
+    // Округляем до целых рублей
+    finalPrice = Math.round(finalPrice);
+    
+    // Обновляем отображение
+    totalPriceElement.textContent = formatPrice(finalPrice);
+    
+    // Формируем детали
+    let detailsText = `Базовая: ${formatPrice(basePrice)}`;
+    
+    if (optionsDetails.length > 0) {
+        detailsText += ` | Опции: ${optionsDetails.join(', ')}`;
+    }
+    
+    if (discountDetails.length > 0) {
+        detailsText += ` | Скидки: ${discountDetails.join(', ')}`;
+    }
+    
+    priceDetailsElement.textContent = detailsText;
+    
+    // Активируем кнопку отправки
+    if (submitBtn) {
+        submitBtn.disabled = false;
+    }
+}
+
+/**
+ * Проверяет валидность формы заявки
+ */
+function validateApplicationForm() {
+    const dateSelect = document.getElementById('date_start');
+    const timeSelect = document.getElementById('time_start');
+    const personsInput = document.getElementById('persons');
+    const submitBtn = document.getElementById('submitApplicationBtn');
+    
+    if (!dateSelect || !timeSelect || !personsInput || !submitBtn) {
+        return false;
+    }
+    
+    const isValid = dateSelect.value && 
+                    timeSelect.value && 
+                    personsInput.value && 
+                    parseInt(personsInput.value) >= 1 && 
+                    parseInt(personsInput.value) <= 20;
+    
+    submitBtn.disabled = !isValid;
+    return isValid;
+}
+
+/**
+ * Отправляет заявку на курс
+ */
+async function submitCourseApplication(course) {
+    const courseId = document.getElementById('course_id')?.value;
+    const dateStart = document.getElementById('date_start')?.value;
+    const timeStart = document.getElementById('time_start')?.value;
+    const persons = document.getElementById('persons')?.value;
+    const totalPrice = document.getElementById('totalPrice')?.textContent;
+    
+    if (!courseId || !dateStart || !timeStart || !persons) {
+        showNotification('Заполните все обязательные поля', 'danger');
+        return;
+    }
+    
+    // Преобразуем цену из формата "1 234 ₽" в число
+    const priceNumber = parseInt(totalPrice.replace(/[^\d]/g, ''));
+    
+    // Собираем данные заявки
+    const orderData = {
+        course_id: parseInt(courseId),
+        tutor_id: 0,
+        date_start: dateStart,
+        time_start: timeStart,
+        duration: (course.total_length || 0) * (course.week_length || 0),
+        persons: parseInt(persons),
+        price: priceNumber,
+        early_registration: document.getElementById('date_start')?.value ? true : false,
+        group_enrollment: parseInt(persons) >= 5,
+        intensive_course: document.getElementById('intensive_course')?.checked || false,
+        supplementary: document.getElementById('supplementary')?.checked || false,
+        personalized: document.getElementById('personalized')?.checked || false,
+        excursions: document.getElementById('excursions')?.checked || false,
+        assessment: document.getElementById('assessment')?.checked || false,
+        interactive: document.getElementById('interactive')?.checked || false
+    };
+    
+    console.log('Отправка заявки:', orderData);
+    
+    try {
+        // Отправляем заявку
+        const result = await createOrder(orderData);
+        
+        if (result) {
+            showNotification('Заявка успешно отправлена!', 'success');
+            
+            // Закрываем модальное окно
+            const modal = bootstrap.Modal.getInstance(document.getElementById('applicationModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Обновляем список заявок если мы в личном кабинете
+            if (window.location.pathname.includes('account.html')) {
+                await loadOrders();
+            }
+        } else {
+            showNotification('Ошибка при отправке заявки', 'danger');
+        }
+        
+    } catch (error) {
+        console.error('Ошибка при отправке заявки:', error);
+        showNotification('Ошибка при отправке заявки: ' + error.message, 'danger');
+    }
+}
+
+/**
+ * Обновляем функцию enrollInCourse (заменяем заглушку)
+ */
+async function enrollInCourse(courseId, courseName, teacherName, courseFee, courseLength) {
+    console.log('Запись на курс:', courseId, courseName);
+    showCourseApplicationModal(courseId, courseName, teacherName, courseFee, courseLength);
+}
+// ============================================
+// НАВИГАЦИЯ И СТРАНИЦЫ
+// ============================================
+
+/**
+ * Инициализирует навигацию между страницами
+ */
+function initNavigation() {
+    // Ссылка на поиск репетиторов
+    const tutorsLink = document.getElementById('tutors-link');
+    if (tutorsLink) {
+        tutorsLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            showTutorsPage();
+        });
+    }
+    
+    // Кнопка оформления заявки на главной
+    const startAppBtn = document.getElementById('start-application-btn');
+    if (startAppBtn) {
+        startAppBtn.addEventListener('click', function() {
+            showTutorsPage();
+        });
+    }
+}
+
+/**
+ * Показывает страницу поиска репетиторов
+ */
+function showTutorsPage() {
+    const contentDiv = document.getElementById('content');
+    
+    if (!contentDiv) return;
+    
+    // Проверяем, загружен ли скрипт репетиторов
+    if (typeof initTutorsPage !== 'function') {
+        // Динамически загружаем скрипт
+        const script = document.createElement('script');
+        script.src = 'js/tutors.js';
+        script.onload = function() {
+            initTutorsPage();
+        };
+        document.head.appendChild(script);
+    } else {
+        initTutorsPage();
+    }
+}
+
+// Обновляем функцию initEventListeners в main.js
+function initEventListeners() {
+    // Инициализация поиска
+    initSearch();
+    
+    // Инициализация навигации
+    initNavigation();
+    
+    // Делегирование событий для динамически созданных кнопок
+    document.addEventListener('click', function(e) {
+        // Кнопка "Подробнее" о курсе
+        if (e.target.closest('.view-course-btn')) {
+            const button = e.target.closest('.view-course-btn');
+            const courseId = button.getAttribute('data-course-id');
+            const courseName = button.getAttribute('data-course-name');
+            viewCourseDetails(courseId, courseName);
+        }
+        
+        // Кнопка "Записаться" на курс
+        if (e.target.closest('.enroll-btn')) {
+            const button = e.target.closest('.enroll-btn');
+            const courseId = button.getAttribute('data-course-id');
+            const courseName = button.getAttribute('data-course-name');
+            const teacherName = button.getAttribute('data-course-teacher');
+            const courseFee = button.getAttribute('data-course-fee');
+            const courseLength = button.getAttribute('data-course-length');
+            enrollInCourse(courseId, courseName, teacherName, courseFee, courseLength);
+        }
+        
+        // Кнопка "Связаться с нами"
+        if (e.target.closest('#contact-us-btn')) {
+            showContactModal();
+        }
+    });
+    
+    console.log('Обработчики событий инициализированы');
+}

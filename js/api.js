@@ -1,137 +1,206 @@
 /**
- * Конфигурация API для проекта
+ * API для Language School Project
  */
 
 const API_BASE_URL = 'http://exam-api-courses.std-900.ist.mospolytech.ru';
 const API_KEY = '85a17069-b9fd-4069-b624-0419fcc4a309';
 
-// Добавляем проверку авторизации для всех запросов
-function getAuthUrl(baseUrl) {
-    return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}api_key=${API_KEY}`;
+/**
+ * Вспомогательная функция для создания URL с авторизацией
+ */
+function createApiUrl(endpoint) {
+    const url = new URL(`${API_BASE_URL}${endpoint}`);
+    url.searchParams.append('api_key', API_KEY);
+    return url.toString();
 }
 
 /**
- * Получить список курсов
- * @returns {Promise} Promise с массивом курсов
+ * Базовый запрос к API с обработкой ошибок
+ */
+async function apiRequest(url, options = {}) {
+    try {
+        const defaultHeaders = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
+        
+        const response = await fetch(url, {
+            ...options,
+            headers: {
+                ...defaultHeaders,
+                ...options.headers
+            }
+        });
+        
+        console.log(`API ${options.method || 'GET'} ${url}:`, response.status);
+        
+        if (!response.ok) {
+            let errorText = await response.text();
+            let errorMessage = `HTTP ${response.status}`;
+            
+            try {
+                const errorData = JSON.parse(errorText);
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                // Если ответ не JSON, используем текст как есть
+                if (errorText) errorMessage = errorText;
+            }
+            
+            throw new Error(errorMessage);
+        }
+        
+        // Если ответ 204 No Content (например, при удалении)
+        if (response.status === 204) {
+            return { success: true };
+        }
+        
+        return await response.json();
+        
+    } catch (error) {
+        console.error('API Request Error:', error);
+        throw error;
+    }
+}
+
+/**
+ * ПОЛУЧИТЬ СПИСОК КУРСОВ
+ * GET /api/courses
  */
 async function getCourses() {
-    const url = getAuthUrl(`${API_BASE_URL}/api/courses`);
-    return await fetchData(url);
+    const url = createApiUrl('/api/courses');
+    return await apiRequest(url);
 }
 
 /**
- * Получить информацию о курсе по ID
- * @param {number} courseId - ID курса
- * @returns {Promise} Promise с информацией о курсе
+ * ПОЛУЧИТЬ КУРС ПО ID
+ * GET /api/courses/{id}
  */
 async function getCourseById(courseId) {
-    const url = getAuthUrl(`${API_BASE_URL}/api/courses/${courseId}`);
-    return await fetchData(url);
+    const url = createApiUrl(`/api/courses/${courseId}`);
+    return await apiRequest(url);
 }
 
 /**
- * Получить список репетиторов
- * @returns {Promise} Promise с массивом репетиторов
+ * ПОЛУЧИТЬ СПИСОК РЕПЕТИТОРОВ
+ * GET /api/tutors
  */
 async function getTutors() {
-    const url = getAuthUrl(`${API_BASE_URL}/api/tutors`);
-    return await fetchData(url);
+    const url = createApiUrl('/api/tutors');
+    return await apiRequest(url);
 }
 
 /**
- * Получить информацию о репетиторе по ID
- * @param {number} tutorId - ID репетитора
- * @returns {Promise} Promise с информацией о репетитора
+ * ПОЛУЧИТЬ РЕПЕТИТОРА ПО ID
+ * GET /api/tutors/{id}
  */
 async function getTutorById(tutorId) {
-    const url = getAuthUrl(`${API_BASE_URL}/api/tutors/${tutorId}`);
-    return await fetchData(url);
+    const url = createApiUrl(`/api/tutors/${tutorId}`);
+    return await apiRequest(url);
 }
 
 /**
- * Получить список заявок пользователя
- * @returns {Promise} Promise с массивом заявок
+ * ПОЛУЧИТЬ СПИСОК ЗАЯВОК
+ * GET /api/orders
  */
 async function getOrders() {
-    const url = getAuthUrl(`${API_BASE_URL}/api/orders`);
-    return await fetchData(url);
+    const url = createApiUrl('/api/orders');
+    return await apiRequest(url);
 }
 
 /**
- * Получить информацию о заявке по ID
- * @param {number} orderId - ID заявки
- * @returns {Promise} Promise с информацией о заявке
+ * ПОЛУЧИТЬ ЗАЯВКУ ПО ID
+ * GET /api/orders/{id}
  */
 async function getOrderById(orderId) {
-    const url = getAuthUrl(`${API_BASE_URL}/api/orders/${orderId}`);
-    return await fetchData(url);
+    const url = createApiUrl(`/api/orders/${orderId}`);
+    return await apiRequest(url);
 }
 
 /**
- * Создать новую заявку
- * @param {Object} orderData - Данные заявки
- * @returns {Promise} Promise с созданной заявкой
+ * СОЗДАТЬ ЗАЯВКУ
+ * POST /api/orders
  */
 async function createOrder(orderData) {
-    const url = getAuthUrl(`${API_BASE_URL}/api/orders`);
+    const url = createApiUrl('/api/orders');
     
-    const options = {
+    // Проверяем обязательные поля
+    const requiredFields = ['date_start', 'time_start', 'duration', 'persons', 'price'];
+    const missingFields = requiredFields.filter(field => !orderData[field] && orderData[field] !== 0);
+    
+    if (missingFields.length > 0) {
+        throw new Error(`Отсутствуют обязательные поля: ${missingFields.join(', ')}`);
+    }
+    
+    // Преобразуем boolean поля (должны быть всегда)
+    const booleanFields = [
+        'early_registration', 'group_enrollment', 'intensive_course',
+        'supplementary', 'personalized', 'excursions', 'assessment', 'interactive'
+    ];
+    
+    booleanFields.forEach(field => {
+        if (orderData[field] === undefined) {
+            orderData[field] = false;
+        }
+    });
+    
+    // Убедимся, что tutor_id или course_id установлены
+    if (!orderData.tutor_id && !orderData.course_id) {
+        throw new Error('Должен быть указан либо tutor_id, либо course_id');
+    }
+    
+    return await apiRequest(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
         body: JSON.stringify(orderData)
-    };
-    
-    return await fetchData(url, options);
+    });
 }
 
 /**
- * Обновить существующую заявку
- * @param {number} orderId - ID заявки
- * @param {Object} orderData - Обновленные данные заявки
- * @returns {Promise} Promise с обновленной заявкой
+ * ОБНОВИТЬ ЗАЯВКУ
+ * PUT /api/orders/{id}
  */
 async function updateOrder(orderId, orderData) {
-    const url = getAuthUrl(`${API_BASE_URL}/api/orders/${orderId}`);
+    const url = createApiUrl(`/api/orders/${orderId}`);
     
-    const options = {
+    // При PUT запросе передаем только изменяемые поля
+    const updateData = {};
+    
+    // Копируем только те поля, которые есть в orderData
+    const allowedFields = [
+        'date_start', 'time_start', 'duration', 'persons', 'price',
+        'early_registration', 'group_enrollment', 'intensive_course',
+        'supplementary', 'personalized', 'excursions', 'assessment', 'interactive'
+    ];
+    
+    allowedFields.forEach(field => {
+        if (orderData[field] !== undefined) {
+            updateData[field] = orderData[field];
+        }
+    });
+    
+    return await apiRequest(url, {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(orderData)
-    };
-    
-    return await fetchData(url, options);
+        body: JSON.stringify(updateData)
+    });
 }
 
 /**
- * Удалить заявку
- * @param {number} orderId - ID заявки
- * @returns {Promise} Promise с результатом удаления
+ * УДАЛИТЬ ЗАЯВКУ
+ * DELETE /api/orders/{id}
  */
 async function deleteOrder(orderId) {
-    const url = getAuthUrl(`${API_BASE_URL}/api/orders/${orderId}`);
-    
-    const options = {
-        method: 'DELETE'
-    };
-    
-    return await fetchData(url, options);
+    const url = createApiUrl(`/api/orders/${orderId}`);
+    return await apiRequest(url, { method: 'DELETE' });
 }
 
-// Экспорт функций API
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        getCourses,
-        getCourseById,
-        getTutors,
-        getTutorById,
-        getOrders,
-        getOrderById,
-        createOrder,
-        updateOrder,
-        deleteOrder
-    };
-}
+// Экспорт всех функций
+window.APIService = {
+    getCourses,
+    getCourseById,
+    getTutors,
+    getTutorById,
+    getOrders,
+    getOrderById,
+    createOrder,
+    updateOrder,
+    deleteOrder
+};

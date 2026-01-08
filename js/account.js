@@ -1,73 +1,66 @@
 /**
- * Скрипт для страницы личного кабинета
+ * Личный кабинет пользователя
+ * Управление заявками
  */
 
-// Глобальные переменные для хранения данных
 let allOrders = [];
-let filteredOrders = [];
 let currentPage = 1;
-const ORDERS_PER_PAGE = 5; // По заданию: 5 заявок на страницу
+const ORDERS_PER_PAGE = 5;
 
+/**
+ * Инициализация личного кабинета
+ */
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('Страница личного кабинета загружена');
-    
-    // Показываем информационное уведомление
-    showNotification('Загружаем ваши заявки...', 'info', 3000);
-    
-    // Загружаем заявки
+    console.log('Личный кабинет загружен');
     await loadOrders();
-    
-    // Инициализируем обработчики событий
-    initAccountEventListeners();
 });
 
 /**
  * Загружает заявки пользователя
  */
 async function loadOrders() {
-    const ordersContainer = document.getElementById('orders-container');
-    
-    if (!ordersContainer) {
-        console.error('Контейнер для заявок не найден');
-        return;
-    }
-    
     try {
-        // Получаем заявки из API
-        const orders = await getOrders();
+        const ordersContainer = document.getElementById('orders-container');
+        if (!ordersContainer) return;
         
-        if (!orders) {
-            showNotification('Не удалось загрузить заявки', 'danger');
-            ordersContainer.innerHTML = `
-                <div class="alert alert-danger text-center">
-                    <h5>Ошибка при загрузке заявок</h5>
-                    <p>Пожалуйста, попробуйте обновить страницу</p>
+        // Показываем загрузку
+        ordersContainer.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
                 </div>
-            `;
-            return;
+                <p class="mt-2">Загружаем ваши заявки...</p>
+            </div>
+        `;
+        
+        // Загружаем заявки через API
+        const orders = await APIService.getOrders();
+        
+        if (!Array.isArray(orders)) {
+            throw new Error('Некорректный ответ от сервера');
         }
         
         allOrders = orders;
-        filteredOrders = [...allOrders];
+        
+        console.log(`Загружено ${orders.length} заявок`);
         
         // Отображаем заявки
         displayOrders();
         
-        if (orders.length === 0) {
-            showNotification('У вас пока нет заявок', 'info', 3000);
-        } else {
-            showNotification(`Загружено ${orders.length} заявок`, 'success', 3000);
-        }
-        
     } catch (error) {
-        console.error('Ошибка при загрузке заявок:', error);
+        console.error('Ошибка загрузки заявок:', error);
+        showNotification(`Ошибка загрузки заявок: ${error.message}`, 'danger');
         
-        ordersContainer.innerHTML = `
-            <div class="alert alert-danger text-center">
-                <h5>Ошибка при загрузке заявок</h5>
-                <p>${error.message || 'Неизвестная ошибка'}</p>
-            </div>
-        `;
+        const ordersContainer = document.getElementById('orders-container');
+        if (ordersContainer) {
+            ordersContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <h5>Не удалось загрузить заявки</h5>
+                    <p>${error.message}</p>
+                    <button onclick="location.reload()" class="btn btn-primary btn-sm mt-2">Обновить</button>
+                </div>
+            `;
+        }
     }
 }
 
@@ -80,22 +73,19 @@ function displayOrders() {
     
     if (!ordersContainer || !paginationContainer) return;
     
-    // Рассчитываем пагинацию
-    const totalPages = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
+    // Пагинация
+    const totalPages = Math.ceil(allOrders.length / ORDERS_PER_PAGE);
     const startIndex = (currentPage - 1) * ORDERS_PER_PAGE;
     const endIndex = startIndex + ORDERS_PER_PAGE;
-    const currentOrders = filteredOrders.slice(startIndex, endIndex);
-    
-    // Очищаем контейнер
-    ordersContainer.innerHTML = '';
+    const currentOrders = allOrders.slice(startIndex, endIndex);
     
     // Если заявок нет
     if (currentOrders.length === 0) {
         ordersContainer.innerHTML = `
             <div class="text-center py-5">
                 <i class="bi bi-inbox display-1 text-muted mb-3"></i>
-                <h4>Заявок не найдено</h4>
-                <p class="text-muted">У вас пока нет оформленных заявок</p>
+                <h4>Заявок нет</h4>
+                <p class="text-muted">У вас еще нет оформленных заявок</p>
                 <a href="index.html" class="btn btn-primary mt-3">
                     <i class="bi bi-arrow-left me-2"></i>Вернуться к курсам
                 </a>
@@ -105,64 +95,68 @@ function displayOrders() {
         return;
     }
     
-    // Создаем таблицу
-    const table = document.createElement('table');
-    table.className = 'table table-hover';
-    table.innerHTML = `
-        <thead>
-            <tr>
-                <th scope="col">#</th>
-                <th scope="col">Курс/Репетитор</th>
-                <th scope="col">Дата</th>
-                <th scope="col">Время</th>
-                <th scope="col">Стоимость</th>
-                <th scope="col" class="text-end">Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Строки будут добавлены ниже -->
-        </tbody>
+    // Создаем таблицу заявок
+    let tableHtml = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">Тип</th>
+                        <th scope="col">Дата</th>
+                        <th scope="col">Время</th>
+                        <th scope="col">Стоимость</th>
+                        <th scope="col" class="text-end">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
     `;
     
-    const tbody = table.querySelector('tbody');
-    
-    // Заполняем таблицу данными
     currentOrders.forEach((order, index) => {
         const orderNumber = startIndex + index + 1;
+        const orderType = order.course_id ? 'Курс' : 'Репетитор';
+        const orderTarget = order.course_id ? `Курс #${order.course_id}` : `Репетитор #${order.tutor_id}`;
         
-        let courseOrTutor = 'Не указано';
-        if (order.course_id && order.course_id > 0) {
-            courseOrTutor = `Курс #${order.course_id}`;
-        } else if (order.tutor_id && order.tutor_id > 0) {
-            courseOrTutor = `Репетитор #${order.tutor_id}`;
-        }
-        
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <th scope="row">${orderNumber}</th>
-            <td>${courseOrTutor}</td>
-            <td>${formatDate(order.date_start) || 'Не указано'}</td>
-            <td>${formatTime(order.time_start) || 'Не указано'}</td>
-            <td><strong>${formatPrice(order.price) || 'Не указано'}</strong></td>
-            <td class="text-end">
-                <button class="btn btn-sm btn-outline-info view-order-btn" data-order-id="${order.id}">
-                    <i class="bi bi-eye"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-warning ms-1 edit-order-btn" data-order-id="${order.id}">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger ms-1 delete-order-btn" data-order-id="${order.id}">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </td>
+        tableHtml += `
+            <tr id="orderRow${order.id}">
+                <th scope="row">${orderNumber}</th>
+                <td>
+                    <span class="badge ${order.course_id ? 'bg-info' : 'bg-warning'}">
+                        ${orderType}
+                    </span><br>
+                    <small>${orderTarget}</small>
+                </td>
+                <td>${formatDate(order.date_start)}</td>
+                <td>${formatTime(order.time_start)}</td>
+                <td>
+                    <strong class="text-primary">${formatPrice(order.price)}</strong>
+                </td>
+                <td class="text-end">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-info view-order-btn" data-order-id="${order.id}">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-warning edit-order-btn" data-order-id="${order.id}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger delete-order-btn" data-order-id="${order.id}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
         `;
-        
-        tbody.appendChild(row);
     });
     
-    ordersContainer.appendChild(table);
+    tableHtml += `
+                </tbody>
+            </table>
+        </div>
+    `;
     
-    // Создаем пагинацию
+    ordersContainer.innerHTML = tableHtml;
+    
+    // Пагинация
     paginationContainer.innerHTML = '';
     if (totalPages > 1) {
         const pagination = createPagination(currentPage, totalPages, (page) => {
@@ -174,277 +168,202 @@ function displayOrders() {
             paginationContainer.appendChild(pagination);
         }
     }
+    
+    // Инициализируем обработчики кнопок
+    initOrderButtons();
 }
 
 /**
- * Инициализирует обработчики событий для личного кабинета
+ * Инициализирует обработчики кнопок заявок
  */
-function initAccountEventListeners() {
-    // Обработчики для кнопок будут добавлены в следующем этапе
-    console.log('Обработчики личного кабинета инициализированы');
-    
-    // Делегирование событий для динамически созданных кнопок
-    document.addEventListener('click', function(e) {
-        // Кнопка "Подробнее"
-        if (e.target.closest('.view-order-btn')) {
-            const button = e.target.closest('.view-order-btn');
-            const orderId = button.getAttribute('data-order-id');
+function initOrderButtons() {
+    // Просмотр заявки
+    document.querySelectorAll('.view-order-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const orderId = this.getAttribute('data-order-id');
             viewOrderDetails(orderId);
-        }
-        
-        // Кнопка "Изменить"
-        if (e.target.closest('.edit-order-btn')) {
-            const button = e.target.closest('.edit-order-btn');
-            const orderId = button.getAttribute('data-order-id');
+        });
+    });
+    
+    // Редактирование заявки
+    document.querySelectorAll('.edit-order-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const orderId = this.getAttribute('data-order-id');
             editOrder(orderId);
-        }
-        
-        // Кнопка "Удалить"
-        if (e.target.closest('.delete-order-btn')) {
-            const button = e.target.closest('.delete-order-btn');
-            const orderId = button.getAttribute('data-order-id');
-            deleteOrder(orderId);
-        }
+        });
+    });
+    
+    // Удаление заявки
+    document.querySelectorAll('.delete-order-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const orderId = this.getAttribute('data-order-id');
+            confirmDeleteOrder(orderId);
+        });
     });
 }
 
-// ============================================
-// ОБНОВЛЕННЫЕ ФУНКЦИИ ДЛЯ ЛИЧНОГО КАБИНЕТА
-// ============================================
-
 /**
- * Показывает детали заявки в модальном окне
- * @param {number} orderId - ID заявки
+ * Показывает детали заявки
  */
 async function viewOrderDetails(orderId) {
-    console.log('Просмотр заявки:', orderId);
-    
-    try {
-        const order = await getOrderById(orderId);
-        
-        if (!order) {
-            showNotification('Не удалось загрузить информацию о заявке', 'danger');
-            return;
-        }
-        
-        // Получаем дополнительную информацию о курсе или репетиторе
-        let itemInfo = null;
-        if (order.course_id && order.course_id > 0) {
-            itemInfo = await getCourseById(order.course_id);
-        } else if (order.tutor_id && order.tutor_id > 0) {
-            itemInfo = await getTutorById(order.tutor_id);
-        }
-        
-        const modalBody = document.querySelector('#orderDetailsModal .modal-body');
-        if (!modalBody) return;
-        
-        // Собираем информацию для отображения
-        let detailsHtml = `
-            <div class="row">
-                <div class="col-md-6">
-                    <h6>Основная информация</h6>
-                    <p><strong>ID заявки:</strong> ${order.id}</p>
-                    <p><strong>Тип:</strong> ${order.course_id ? 'Курс' : 'Репетитор'}</p>
-                    ${itemInfo ? `<p><strong>Название:</strong> ${itemInfo.name || 'Не указано'}</p>` : ''}
-                    <p><strong>Дата создания:</strong> ${formatDateTime(order.created_at)}</p>
-                    <p><strong>Дата обновления:</strong> ${formatDateTime(order.updated_at)}</p>
-                </div>
-                <div class="col-md-6">
-                    <h6>Детали заявки</h6>
-                    <p><strong>Дата начала:</strong> ${formatDate(order.date_start)}</p>
-                    <p><strong>Время начала:</strong> ${formatTime(order.time_start)}</p>
-                    <p><strong>Продолжительность:</strong> ${order.duration || 0} часов</p>
-                    <p><strong>Количество человек:</strong> ${order.persons || 1}</p>
-                    <p><strong>Стоимость:</strong> <span class="text-primary fw-bold">${formatPrice(order.price)}</span></p>
-                </div>
-            </div>
-            
-            <div class="row mt-3">
-                <div class="col-12">
-                    <h6>Дополнительные опции</h6>
-                    <div class="row">
-        `;
-        
-        // Список опций с иконками
-        const options = [
-            { key: 'early_registration', label: 'Ранняя регистрация', value: order.early_registration, icon: 'bi-calendar-check' },
-            { key: 'group_enrollment', label: 'Групповая запись', value: order.group_enrollment, icon: 'bi-people' },
-            { key: 'intensive_course', label: 'Интенсивный курс', value: order.intensive_course, icon: 'bi-lightning' },
-            { key: 'supplementary', label: 'Дополнительные материалы', value: order.supplementary, icon: 'bi-book' },
-            { key: 'personalized', label: 'Индивидуальные занятия', value: order.personalized, icon: 'bi-person' },
-            { key: 'excursions', label: 'Культурные экскурсии', value: order.excursions, icon: 'bi-airplane' },
-            { key: 'assessment', label: 'Оценка уровня', value: order.assessment, icon: 'bi-clipboard-check' },
-            { key: 'interactive', label: 'Интерактивная платформа', value: order.interactive, icon: 'bi-laptop' }
-        ];
-        
-        options.forEach(option => {
-            const iconClass = option.value ? 'text-success' : 'text-muted';
-            detailsHtml += `
-                <div class="col-md-6 mb-2">
-                    <div class="d-flex align-items-center">
-                        <i class="bi ${option.icon} ${iconClass} me-2"></i>
-                        <span>${option.label}: <strong>${option.value ? 'Да' : 'Нет'}</strong></span>
-                    </div>
-                </div>
-            `;
-        });
-        
-        detailsHtml += `
-                    </div>
-                </div>
-            </div>
-            
-            <div class="mt-4 alert alert-info">
-                <h6><i class="bi bi-calculator me-2"></i>Расчеты:</h6>
-                <p class="mb-1">Общая стоимость с учетом всех опций: ${formatPrice(order.price)}</p>
-                <p class="mb-0">Студент ID: ${order.student_id || 'Не указан'}</p>
-            </div>
-        `;
-        
-        modalBody.innerHTML = detailsHtml;
-        
-        // Обновляем заголовок модального окна
-        const modalTitle = document.querySelector('#orderDetailsModal .modal-title');
-        if (modalTitle) {
-            modalTitle.textContent = `Детали заявки #${order.id}`;
-        }
-        
-        // Показываем модальное окно
-        const modal = new bootstrap.Modal(document.getElementById('orderDetailsModal'));
-        modal.show();
-        
-    } catch (error) {
-        console.error('Ошибка при загрузке деталей заявки:', error);
-        showNotification('Ошибка при загрузке деталей заявки', 'danger');
-    }
-}
 
-/**
- * Редактирование заявки
- */
-async function editOrder(orderId) {
-    console.log('Редактирование заявки:', orderId);
-    
     try {
-        const order = await getOrderById(orderId);
+        console.log('Просмотр заявки ID:', orderId);
+        
+        // Загружаем заявку
+        const order = await APIService.getOrderById(orderId);
         
         if (!order) {
-            showNotification('Не удалось загрузить информацию о заявке', 'danger');
+            showNotification('Заявка не найдена', 'warning');
             return;
         }
         
-        // Создаем модальное окно редактирования
+        console.log('Данные заявки:', order);
+        
+        // Определяем тип заявки
+        const isCourse = order.course_id && order.course_id > 0;
+        const itemType = isCourse ? 'Курс' : 'Репетитор';
+        const itemId = isCourse ? order.course_id : order.tutor_id;
+        
+        // Базовые данные для отображения
+        const formattedDate = formatDate(order.date_start) || 'Не указано';
+        const formattedTime = formatTime(order.time_start) || 'Не указано';
+        const formattedPrice = formatPrice(order.price) || 'Не указано';
+        const createdAt = order.created_at ? formatDateTime(order.created_at) : 'Не указано';
+        const updatedAt = order.updated_at ? formatDateTime(order.updated_at) : 'Не указано';
+        
+        // Создаем HTML для модального окна
         const modalHtml = `
-            <div class="modal fade" id="editOrderModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal fade" id="orderDetailsModal" tabindex="-1">
                 <div class="modal-dialog modal-lg">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Редактирование заявки #${order.id}</h5>
+                            <h5 class="modal-title">Детали заявки #${order.id}</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <form id="editOrderForm">
-                                <input type="hidden" id="edit_order_id" value="${order.id}">
-                                
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label for="edit_date_start" class="form-label">Дата начала *</label>
-                                        <input type="date" class="form-control" id="edit_date_start" 
-                                               value="${order.date_start}" required>
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label for="edit_time_start" class="form-label">Время начала *</label>
-                                        <input type="time" class="form-control" id="edit_time_start" 
-                                               value="${order.time_start}" required>
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label for="edit_duration" class="form-label">Продолжительность (часов) *</label>
-                                        <input type="number" class="form-control" id="edit_duration" 
-                                               min="1" max="40" value="${order.duration || 1}" required>
-                                        <div class="form-text">Для репетиторов: 1-40 часов</div>
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label for="edit_persons" class="form-label">Количество студентов *</label>
-                                        <input type="number" class="form-control" id="edit_persons" 
-                                               min="1" max="20" value="${order.persons || 1}" required>
-                                    </div>
-                                </div>
-                                
-                                <!-- Дополнительные опции -->
-                                <div class="card mt-4">
-                                    <div class="card-header">
-                                        <h6 class="mb-0">Дополнительные опции</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="form-check mb-2">
-                                                    <input class="form-check-input" type="checkbox" id="edit_supplementary" 
-                                                           ${order.supplementary ? 'checked' : ''}>
-                                                    <label class="form-check-label" for="edit_supplementary">
-                                                        Дополнительные учебные материалы
-                                                    </label>
-                                                </div>
-                                                
-                                                <div class="form-check mb-2">
-                                                    <input class="form-check-input" type="checkbox" id="edit_personalized" 
-                                                           ${order.personalized ? 'checked' : ''}>
-                                                    <label class="form-check-label" for="edit_personalized">
-                                                        Индивидуальные занятия
-                                                    </label>
-                                                </div>
-                                                
-                                                <div class="form-check mb-2">
-                                                    <input class="form-check-input" type="checkbox" id="edit_excursions" 
-                                                           ${order.excursions ? 'checked' : ''}>
-                                                    <label class="form-check-label" for="edit_excursions">
-                                                        Культурные экскурсии
-                                                    </label>
-                                                </div>
-                                            </div>
-                                            
-                                            <div class="col-md-6">
-                                                <div class="form-check mb-2">
-                                                    <input class="form-check-input" type="checkbox" id="edit_assessment" 
-                                                           ${order.assessment ? 'checked' : ''}>
-                                                    <label class="form-check-label" for="edit_assessment">
-                                                        Оценка уровня владения языком
-                                                    </label>
-                                                </div>
-                                                
-                                                <div class="form-check mb-2">
-                                                    <input class="form-check-input" type="checkbox" id="edit_interactive" 
-                                                           ${order.interactive ? 'checked' : ''}>
-                                                    <label class="form-check-label" for="edit_interactive">
-                                                        Интерактивная онлайн-платформа
-                                                    </label>
-                                                </div>
-                                                
-                                                <div class="form-check mb-2">
-                                                    <input class="form-check-input" type="checkbox" id="edit_intensive_course" 
-                                                           ${order.intensive_course ? 'checked' : ''}>
-                                                    <label class="form-check-label" for="edit_intensive_course">
-                                                        Интенсивный курс
-                                                    </label>
-                                                </div>
-                                            </div>
+                            <!-- Основная информация -->
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Основная информация</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <p><strong>Тип заявки:</strong> 
+                                                <span class="badge ${isCourse ? 'bg-info' : 'bg-warning'}">
+                                                    ${itemType}
+                                                </span>
+                                            </p>
+                                            <p><strong>ID ${itemType}:</strong> ${itemId || 'Не указан'}</p>
+                                            <p><strong>Дата начала:</strong> ${formattedDate}</p>
+                                            <p><strong>Время начала:</strong> ${formattedTime}</p>
+                                            <p><strong>Продолжительность:</strong> ${order.duration || 0} часов</p>
+                                            <p><strong>Количество студентов:</strong> ${order.persons || 1}</p>
                                         </div>
                                     </div>
                                 </div>
                                 
-                                <div class="alert alert-warning mt-3">
-                                    <i class="bi bi-exclamation-triangle me-2"></i>
-                                    <strong>Внимание!</strong> При редактировании заявки стоимость будет пересчитана автоматически.
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Финансовая информация</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <p><strong>Стоимость:</strong> 
+                                                <span class="text-primary fw-bold fs-5">${formattedPrice}</span>
+                                            </p>
+                                            <p><strong>Дата создания:</strong> ${createdAt}</p>
+                                            <p><strong>Дата обновления:</strong> ${updatedAt}</p>
+                                            ${order.student_id ? `
+                                                <p><strong>ID студента:</strong> ${order.student_id}</p>
+                                            ` : ''}
+                                        </div>
+                                    </div>
                                 </div>
-                            </form>
+                            </div>
+                            
+                            <!-- Дополнительные опции -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Дополнительные опции</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="form-check form-check-inline me-2">
+                                                    <input class="form-check-input" type="checkbox" disabled 
+                                                           ${order.early_registration ? 'checked' : ''}>
+                                                </div>
+                                                <span>Ранняя регистрация (-10%)</span>
+                                            </div>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="form-check form-check-inline me-2">
+                                                    <input class="form-check-input" type="checkbox" disabled 
+                                                           ${order.group_enrollment ? 'checked' : ''}>
+                                                </div>
+                                                <span>Групповая запись (-15%)</span>
+                                            </div>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="form-check form-check-inline me-2">
+                                                    <input class="form-check-input" type="checkbox" disabled 
+                                                           ${order.supplementary ? 'checked' : ''}>
+                                                </div>
+                                                <span>Дополнительные материалы (+2000 ₽)</span>
+                                            </div>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="form-check form-check-inline me-2">
+                                                    <input class="form-check-input" type="checkbox" disabled 
+                                                           ${order.assessment ? 'checked' : ''}>
+                                                </div>
+                                                <span>Оценка уровня (+300 ₽)</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="form-check form-check-inline me-2">
+                                                    <input class="form-check-input" type="checkbox" disabled 
+                                                           ${order.intensive_course ? 'checked' : ''}>
+                                                </div>
+                                                <span>Интенсивный курс (+20%)</span>
+                                            </div>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="form-check form-check-inline me-2">
+                                                    <input class="form-check-input" type="checkbox" disabled 
+                                                           ${order.personalized ? 'checked' : ''}>
+                                                </div>
+                                                <span>Индивидуальные занятия (+1500 ₽/неделя)</span>
+                                            </div>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="form-check form-check-inline me-2">
+                                                    <input class="form-check-input" type="checkbox" disabled 
+                                                           ${order.excursions ? 'checked' : ''}>
+                                                </div>
+                                                <span>Культурные экскурсии (+25%)</span>
+                                            </div>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="form-check form-check-inline me-2">
+                                                    <input class="form-check-input" type="checkbox" disabled 
+                                                           ${order.interactive ? 'checked' : ''}>
+                                                </div>
+                                                <span>Интерактивная платформа (×1.5)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Расчеты -->
+                            <div class="alert alert-info">
+                                <h6><i class="bi bi-calculator me-2"></i>Информация о расчетах</h6>
+                                <p class="mb-1">Базовая стоимость с учетом всех опций: ${formattedPrice}</p>
+                                <p class="mb-0">Все дополнительные опции учтены в финальной стоимости</p>
+                            </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                            <button type="button" class="btn btn-primary" id="saveEditOrderBtn">
-                                <i class="bi bi-save me-2"></i>Сохранить изменения
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="bi bi-x-circle me-2"></i>Закрыть
                             </button>
                         </div>
                     </div>
@@ -457,26 +376,139 @@ async function editOrder(orderId) {
         modalContainer.innerHTML = modalHtml;
         document.body.appendChild(modalContainer);
         
-        // Обработчик сохранения
-        const saveBtn = document.getElementById('saveEditOrderBtn');
-        if (saveBtn) {
-            saveBtn.addEventListener('click', async function() {
-                await saveEditedOrder(order);
-            });
+        // Показываем модальное окно
+        const modalElement = document.getElementById('orderDetailsModal');
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+        
+        // Удаляем модальное окно после закрытия
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            modalContainer.remove();
+        });
+        
+    } catch (error) {
+        console.error('Ошибка загрузки деталей заявки:', error);
+        showNotification(`Ошибка: ${error.message}`, 'danger');
+        
+        // Показываем простое модальное окно с ошибкой
+        const errorModalHtml = `
+            <div class="modal fade" id="errorModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title text-danger">Ошибка</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-danger">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                Не удалось загрузить детали заявки
+                            </div>
+                            <p><strong>Причина:</strong> ${error.message}</p>
+                            <p>Попробуйте обновить страницу и повторить попытку.</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const errorContainer = document.createElement('div');
+        errorContainer.innerHTML = errorModalHtml;
+        document.body.appendChild(errorContainer);
+        
+        const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+        errorModal.show();
+        
+        document.getElementById('errorModal').addEventListener('hidden.bs.modal', function() {
+            errorContainer.remove();
+        });
+    }
+}
+
+/**
+ * Редактирует заявку
+ */
+async function editOrder(orderId) {
+    try {
+        const order = await APIService.getOrderById(orderId);
+        
+        if (!order) {
+            showNotification('Заявка не найдена', 'warning');
+            return;
         }
+        
+        // Создаем модальное окно редактирования
+        const modalHtml = `
+            <div class="modal fade" id="editOrderModal">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Редактирование заявки #${order.id}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="editOrderForm">
+                                <input type="hidden" id="editOrderId" value="${order.id}">
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Дата *</label>
+                                    <input type="date" class="form-control" id="editDate" 
+                                           value="${order.date_start}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Время *</label>
+                                    <input type="time" class="form-control" id="editTime" 
+                                           value="${order.time_start}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Количество студентов *</label>
+                                    <input type="number" class="form-control" id="editPersons" 
+                                           min="1" max="20" value="${order.persons}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Продолжительность (часов) *</label>
+                                    <input type="number" class="form-control" id="editDuration" 
+                                           min="1" max="40" value="${order.duration}" required>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="button" class="btn btn-primary" id="saveEditOrderBtn">Сохранить</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Добавляем модальное окно
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHtml;
+        document.body.appendChild(modalContainer);
+        
+        // Обработчик сохранения
+        document.getElementById('saveEditOrderBtn').addEventListener('click', async function() {
+            await saveEditedOrder(order);
+        });
         
         // Показываем модальное окно
         const modal = new bootstrap.Modal(document.getElementById('editOrderModal'));
         modal.show();
         
-        // Удаляем модальное окно после закрытия
-        modalContainer.querySelector('#editOrderModal').addEventListener('hidden.bs.modal', function () {
+        // Удаляем после закрытия
+        modalContainer.querySelector('#editOrderModal').addEventListener('hidden.bs.modal', function() {
             modalContainer.remove();
         });
         
     } catch (error) {
-        console.error('Ошибка при редактировании заявки:', error);
-        showNotification('Ошибка при загрузке заявки для редактирования', 'danger');
+        console.error('Ошибка загрузки заявки для редактирования:', error);
+        showNotification('Не удалось загрузить заявку для редактирования', 'danger');
     }
 }
 
@@ -484,33 +516,28 @@ async function editOrder(orderId) {
  * Сохраняет отредактированную заявку
  */
 async function saveEditedOrder(originalOrder) {
-    const orderId = document.getElementById('edit_order_id')?.value;
-    const dateStart = document.getElementById('edit_date_start')?.value;
-    const timeStart = document.getElementById('edit_time_start')?.value;
-    const duration = document.getElementById('edit_duration')?.value;
-    const persons = document.getElementById('edit_persons')?.value;
-    
-    if (!orderId || !dateStart || !timeStart || !duration || !persons) {
-        showNotification('Заполните все обязательные поля', 'danger');
-        return;
-    }
-    
-    // Для простоты используем старую цену (в реальном проекте нужно пересчитывать)
-    const updatedData = {
-        date_start: dateStart,
-        time_start: timeStart,
-        duration: parseInt(duration),
-        persons: parseInt(persons),
-        supplementary: document.getElementById('edit_supplementary')?.checked || false,
-        personalized: document.getElementById('edit_personalized')?.checked || false,
-        excursions: document.getElementById('edit_excursions')?.checked || false,
-        assessment: document.getElementById('edit_assessment')?.checked || false,
-        interactive: document.getElementById('edit_interactive')?.checked || false,
-        intensive_course: document.getElementById('edit_intensive_course')?.checked || false
-    };
-    
     try {
-        const result = await updateOrder(orderId, updatedData);
+        const orderId = document.getElementById('editOrderId').value;
+        const date = document.getElementById('editDate').value;
+        const time = document.getElementById('editTime').value;
+        const persons = parseInt(document.getElementById('editPersons').value);
+        const duration = parseInt(document.getElementById('editDuration').value);
+        
+        if (!date || !time || !persons || !duration) {
+            showNotification('Заполните все поля', 'warning');
+            return;
+        }
+        
+        // Обновляем данные (только основные поля)
+        const updatedData = {
+            date_start: date,
+            time_start: time,
+            persons: persons,
+            duration: duration
+        };
+        
+        // Отправляем обновление
+        const result = await APIService.updateOrder(orderId, updatedData);
         
         if (result) {
             showNotification('Заявка успешно обновлена!', 'success');
@@ -525,24 +552,22 @@ async function saveEditedOrder(originalOrder) {
             await loadOrders();
             
         } else {
-            showNotification('Ошибка при обновлении заявки', 'danger');
+            throw new Error('Не удалось обновить заявку');
         }
         
     } catch (error) {
-        console.error('Ошибка при обновлении заявки:', error);
-        showNotification('Ошибка при обновлении заявки: ' + error.message, 'danger');
+        console.error('Ошибка обновления заявки:', error);
+        showNotification(`Ошибка: ${error.message}`, 'danger');
     }
 }
 
 /**
- * Удаление заявки с подтверждением
+ * Подтверждает удаление заявки
  */
-async function deleteOrder(orderId) {
-    console.log('Удаление заявки:', orderId);
-    
+function confirmDeleteOrder(orderId) {
     // Создаем модальное окно подтверждения
     const confirmHtml = `
-        <div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+        <div class="modal fade" id="confirmDeleteModal">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -551,15 +576,15 @@ async function deleteOrder(orderId) {
                     </div>
                     <div class="modal-body">
                         <div class="alert alert-danger">
-                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            <strong>Внимание!</strong> Вы уверены, что хотите удалить заявку #${orderId}?
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Вы уверены, что хотите удалить заявку?
                         </div>
-                        <p class="mb-0">Это действие нельзя отменить.</p>
+                        <p>Это действие нельзя отменить.</p>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Нет, отмена</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                         <button type="button" class="btn btn-danger" id="confirmDeleteBtn" data-order-id="${orderId}">
-                            <i class="bi bi-trash me-2"></i>Да, удалить
+                            Удалить
                         </button>
                     </div>
                 </div>
@@ -567,67 +592,64 @@ async function deleteOrder(orderId) {
         </div>
     `;
     
-    // Добавляем модальное окно в DOM
+    // Добавляем модальное окно
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = confirmHtml;
     document.body.appendChild(modalContainer);
     
     // Обработчик подтверждения удаления
-    const confirmBtn = document.getElementById('confirmDeleteBtn');
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', async function() {
-            const orderIdToDelete = this.getAttribute('data-order-id');
-            await performDeleteOrder(orderIdToDelete);
-            
-            // Закрываем модальное окно
-            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
-            if (modal) {
-                modal.hide();
-            }
-        });
-    }
+    document.getElementById('confirmDeleteBtn').addEventListener('click', async function() {
+        const orderIdToDelete = this.getAttribute('data-order-id');
+        await deleteOrder(orderIdToDelete);
+        
+        // Закрываем модальное окно
+        const modal = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
+        if (modal) {
+            modal.hide();
+        }
+    });
     
     // Показываем модальное окно
-    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    const modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
     modal.show();
     
-    // Удаляем модальное окно после закрытия
-    modalContainer.querySelector('#deleteConfirmModal').addEventListener('hidden.bs.modal', function () {
+    // Удаляем после закрытия
+    modalContainer.querySelector('#confirmDeleteModal').addEventListener('hidden.bs.modal', function() {
         modalContainer.remove();
     });
 }
 
 /**
- * Выполняет удаление заявки
+ * Удаляет заявку
  */
-async function performDeleteOrder(orderId) {
+async function deleteOrder(orderId) {
     try {
-        const result = await deleteOrder(orderId);
+        const result = await APIService.deleteOrder(orderId);
         
         if (result) {
             showNotification('Заявка успешно удалена!', 'success');
             
-            // Удаляем заявку из локального массива
+            // Удаляем заявку из локального списка
             allOrders = allOrders.filter(order => order.id !== parseInt(orderId));
-            filteredOrders = filteredOrders.filter(order => order.id !== parseInt(orderId));
             
             // Пересчитываем текущую страницу
-            const totalPages = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
+            const totalPages = Math.ceil(allOrders.length / ORDERS_PER_PAGE);
             if (currentPage > totalPages && totalPages > 0) {
                 currentPage = totalPages;
-            } else if (totalPages === 0) {
-                currentPage = 1;
             }
             
             // Обновляем отображение
             displayOrders();
             
         } else {
-            showNotification('Ошибка при удалении заявки', 'danger');
+            throw new Error('Не удалось удалить заявку');
         }
         
     } catch (error) {
-        console.error('Ошибка при удалении заявки:', error);
-        showNotification('Ошибка при удалении заявки: ' + error.message, 'danger');
+        console.error('Ошибка удаления заявки:', error);
+        showNotification(`Ошибка: ${error.message}`, 'danger');
     }
 }
+
+// Экспортируем функции
+window.loadOrders = loadOrders;

@@ -49,17 +49,50 @@ function showNotification(message, type = 'info', duration = 5000) {
 function formatDate(dateString) {
     if (!dateString) return 'Не указано';
     
-    const date = new Date(dateString);
-    
-    if (isNaN(date.getTime())) {
+    try {
+        const date = new Date(dateString);
+        
+        if (isNaN(date.getTime())) {
+            return dateString;
+        }
+        
+        return date.toLocaleDateString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+    } catch (error) {
+        console.warn('Ошибка форматирования даты:', error);
         return dateString;
     }
+}
+
+/**
+ * Форматирует дату и время
+ * @param {string} dateTimeString - Строка с датой и временем
+ * @returns {string} Отформатированная дата и время
+ */
+function formatDateTime(dateTimeString) {
+    if (!dateTimeString) return 'Не указано';
     
-    return date.toLocaleDateString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    });
+    try {
+        const date = new Date(dateTimeString);
+        
+        if (isNaN(date.getTime())) {
+            return dateTimeString;
+        }
+        
+        return date.toLocaleDateString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (error) {
+        console.warn('Ошибка форматирования даты и времени:', error);
+        return dateTimeString;
+    }
 }
 
 /**
@@ -70,8 +103,13 @@ function formatDate(dateString) {
 function formatTime(timeString) {
     if (!timeString) return 'Не указано';
     
-    const [hours, minutes] = timeString.split(':');
-    return `${hours}:${minutes}`;
+    try {
+        const [hours, minutes] = timeString.split(':');
+        return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    } catch (error) {
+        console.warn('Ошибка форматирования времени:', error);
+        return timeString;
+    }
 }
 
 /**
@@ -82,12 +120,47 @@ function formatTime(timeString) {
 function formatPrice(price) {
     if (!price && price !== 0) return 'Не указано';
     
-    return new Intl.NumberFormat('ru-RU', {
-        style: 'currency',
-        currency: 'RUB',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(price);
+    try {
+        return new Intl.NumberFormat('ru-RU', {
+            style: 'currency',
+            currency: 'RUB',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(price);
+    } catch (error) {
+        console.warn('Ошибка форматирования цены:', error);
+        return price + ' ₽';
+    }
+}
+
+/**
+ * Обрезает длинный текст и добавляет троеточие
+ * @param {string} text - Исходный текст
+ * @param {number} maxLength - Максимальная длина
+ * @returns {string} Обрезанный текст
+ */
+function truncateText(text, maxLength = 100) {
+    if (!text || text.length <= maxLength) return text;
+    
+    return text.substring(0, maxLength) + '...';
+}
+
+/**
+ * Создает всплывающую подсказку (tooltip) для длинного текста
+ * @param {HTMLElement} element - Элемент для добавления tooltip
+ * @param {string} fullText - Полный текст
+ */
+function addTooltip(element, fullText) {
+    if (!element || !fullText) return;
+    
+    element.setAttribute('data-bs-toggle', 'tooltip');
+    element.setAttribute('data-bs-placement', 'top');
+    element.setAttribute('title', fullText);
+    
+    // Инициализация tooltip при необходимости
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+        new bootstrap.Tooltip(element);
+    }
 }
 
 /**
@@ -104,7 +177,7 @@ function isEmpty(value) {
 }
 
 /**
- * Создает элемент пагинации
+ * Создает элемент пагинации Bootstrap
  * @param {number} currentPage - Текущая страница
  * @param {number} totalPages - Всего страниц
  * @param {Function} onPageChange - Функция обратного вызова при смене страницы
@@ -125,7 +198,7 @@ function createPagination(currentPage, totalPages, onPageChange) {
     const prevLink = document.createElement('a');
     prevLink.className = 'page-link';
     prevLink.href = '#';
-    prevLink.textContent = 'Назад';
+    prevLink.innerHTML = '&laquo; <span class="d-none d-sm-inline">Назад</span>';
     prevLink.addEventListener('click', (e) => {
         e.preventDefault();
         if (currentPage > 1) {
@@ -144,6 +217,32 @@ function createPagination(currentPage, totalPages, onPageChange) {
         startPage = Math.max(1, endPage - maxVisible + 1);
     }
     
+    // Первая страница, если нужно
+    if (startPage > 1) {
+        const firstLi = document.createElement('li');
+        firstLi.className = 'page-item';
+        const firstLink = document.createElement('a');
+        firstLink.className = 'page-link';
+        firstLink.href = '#';
+        firstLink.textContent = '1';
+        firstLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            onPageChange(1);
+        });
+        firstLi.appendChild(firstLink);
+        ul.appendChild(firstLi);
+        
+        if (startPage > 2) {
+            const ellipsisLi = document.createElement('li');
+            ellipsisLi.className = 'page-item disabled';
+            const ellipsisSpan = document.createElement('span');
+            ellipsisSpan.className = 'page-link';
+            ellipsisSpan.textContent = '...';
+            ellipsisLi.appendChild(ellipsisSpan);
+            ul.appendChild(ellipsisLi);
+        }
+    }
+    
     for (let i = startPage; i <= endPage; i++) {
         const pageLi = document.createElement('li');
         pageLi.className = `page-item ${i === currentPage ? 'active' : ''}`;
@@ -159,13 +258,39 @@ function createPagination(currentPage, totalPages, onPageChange) {
         ul.appendChild(pageLi);
     }
     
+    // Последняя страница, если нужно
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            const ellipsisLi = document.createElement('li');
+            ellipsisLi.className = 'page-item disabled';
+            const ellipsisSpan = document.createElement('span');
+            ellipsisSpan.className = 'page-link';
+            ellipsisSpan.textContent = '...';
+            ellipsisLi.appendChild(ellipsisSpan);
+            ul.appendChild(ellipsisLi);
+        }
+        
+        const lastLi = document.createElement('li');
+        lastLi.className = 'page-item';
+        const lastLink = document.createElement('a');
+        lastLink.className = 'page-link';
+        lastLink.href = '#';
+        lastLink.textContent = totalPages;
+        lastLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            onPageChange(totalPages);
+        });
+        lastLi.appendChild(lastLink);
+        ul.appendChild(lastLi);
+    }
+    
     // Кнопка "Вперед"
     const nextLi = document.createElement('li');
     nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
     const nextLink = document.createElement('a');
     nextLink.className = 'page-link';
     nextLink.href = '#';
-    nextLink.textContent = 'Вперед';
+    nextLink.innerHTML = '<span class="d-none d-sm-inline">Вперед</span> &raquo;';
     nextLink.addEventListener('click', (e) => {
         e.preventDefault();
         if (currentPage < totalPages) {
@@ -180,24 +305,51 @@ function createPagination(currentPage, totalPages, onPageChange) {
 }
 
 /**
- * Загружает данные с API
+ * Загружает данные с API с обработкой ошибок
  * @param {string} url - URL API
  * @param {Object} options - Опции для fetch
  * @returns {Promise} Promise с данными
  */
 async function fetchData(url, options = {}) {
     try {
+        console.log('Запрос к API:', url);
+        
         const response = await fetch(url, options);
         
         if (!response.ok) {
-            throw new Error(`HTTP ошибка: ${response.status}`);
+            const errorText = await response.text();
+            console.error('Ошибка API:', response.status, errorText);
+            
+            let errorMessage = `HTTP ошибка: ${response.status}`;
+            
+            try {
+                const errorData = JSON.parse(errorText);
+                if (errorData.error) {
+                    errorMessage = errorData.error;
+                }
+            } catch (e) {
+                // Не JSON ответ
+            }
+            
+            throw new Error(errorMessage);
         }
         
         const data = await response.json();
+        console.log('Ответ API:', data);
         return data;
     } catch (error) {
         console.error('Ошибка при загрузке данных:', error);
-        showNotification('Ошибка при загрузке данных. Пожалуйста, попробуйте позже.', 'danger');
+        
+        // Более информативные уведомления
+        let userMessage = 'Ошибка при загрузке данных. Пожалуйста, попробуйте позже.';
+        
+        if (error.message.includes('Failed to fetch')) {
+            userMessage = 'Нет соединения с сервером. Проверьте подключение к интернету.';
+        } else if (error.message.includes('авторизации')) {
+            userMessage = 'Ошибка авторизации. Проверьте API ключ.';
+        }
+        
+        showNotification(userMessage, 'danger');
         return null;
     }
 }
@@ -207,8 +359,11 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         showNotification,
         formatDate,
+        formatDateTime,
         formatTime,
         formatPrice,
+        truncateText,
+        addTooltip,
         isEmpty,
         createPagination,
         fetchData

@@ -3,14 +3,19 @@
  */
 
 const API_BASE_URL = 'http://exam-api-courses.std-900.ist.mospolytech.ru';
-const API_KEY = 'ваш_api_ключ_здесь'; // Будет получен из СДО
+const API_KEY = '85a17069-b9fd-4069-b624-0419fcc4a309';
+
+// Добавляем проверку авторизации для всех запросов
+function getAuthUrl(baseUrl) {
+    return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}api_key=${API_KEY}`;
+}
 
 /**
  * Получить список курсов
  * @returns {Promise} Promise с массивом курсов
  */
 async function getCourses() {
-    const url = `${API_BASE_URL}/api/courses?api_key=${API_KEY}`;
+    const url = getAuthUrl(`${API_BASE_URL}/api/courses`);
     return await fetchData(url);
 }
 
@@ -20,7 +25,7 @@ async function getCourses() {
  * @returns {Promise} Promise с информацией о курсе
  */
 async function getCourseById(courseId) {
-    const url = `${API_BASE_URL}/api/courses/${courseId}?api_key=${API_KEY}`;
+    const url = getAuthUrl(`${API_BASE_URL}/api/courses/${courseId}`);
     return await fetchData(url);
 }
 
@@ -29,17 +34,17 @@ async function getCourseById(courseId) {
  * @returns {Promise} Promise с массивом репетиторов
  */
 async function getTutors() {
-    const url = `${API_BASE_URL}/api/tutors?api_key=${API_KEY}`;
+    const url = getAuthUrl(`${API_BASE_URL}/api/tutors`);
     return await fetchData(url);
 }
 
 /**
  * Получить информацию о репетиторе по ID
  * @param {number} tutorId - ID репетитора
- * @returns {Promise} Promise с информацией о репетиторе
+ * @returns {Promise} Promise с информацией о репетитора
  */
 async function getTutorById(tutorId) {
-    const url = `${API_BASE_URL}/api/tutors/${tutorId}?api_key=${API_KEY}`;
+    const url = getAuthUrl(`${API_BASE_URL}/api/tutors/${tutorId}`);
     return await fetchData(url);
 }
 
@@ -48,7 +53,7 @@ async function getTutorById(tutorId) {
  * @returns {Promise} Promise с массивом заявок
  */
 async function getOrders() {
-    const url = `${API_BASE_URL}/api/orders?api_key=${API_KEY}`;
+    const url = getAuthUrl(`${API_BASE_URL}/api/orders`);
     return await fetchData(url);
 }
 
@@ -58,7 +63,7 @@ async function getOrders() {
  * @returns {Promise} Promise с информацией о заявке
  */
 async function getOrderById(orderId) {
-    const url = `${API_BASE_URL}/api/orders/${orderId}?api_key=${API_KEY}`;
+    const url = getAuthUrl(`${API_BASE_URL}/api/orders/${orderId}`);
     return await fetchData(url);
 }
 
@@ -68,7 +73,7 @@ async function getOrderById(orderId) {
  * @returns {Promise} Promise с созданной заявкой
  */
 async function createOrder(orderData) {
-    const url = `${API_BASE_URL}/api/orders?api_key=${API_KEY}`;
+    const url = getAuthUrl(`${API_BASE_URL}/api/orders`);
     
     const options = {
         method: 'POST',
@@ -88,7 +93,7 @@ async function createOrder(orderData) {
  * @returns {Promise} Promise с обновленной заявкой
  */
 async function updateOrder(orderId, orderData) {
-    const url = `${API_BASE_URL}/api/orders/${orderId}?api_key=${API_KEY}`;
+    const url = getAuthUrl(`${API_BASE_URL}/api/orders/${orderId}`);
     
     const options = {
         method: 'PUT',
@@ -107,7 +112,7 @@ async function updateOrder(orderId, orderData) {
  * @returns {Promise} Promise с результатом удаления
  */
 async function deleteOrder(orderId) {
-    const url = `${API_BASE_URL}/api/orders/${orderId}?api_key=${API_KEY}`;
+    const url = getAuthUrl(`${API_BASE_URL}/api/orders/${orderId}`);
     
     const options = {
         method: 'DELETE'
